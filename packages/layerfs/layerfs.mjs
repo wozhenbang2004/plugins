@@ -582,7 +582,7 @@ export class SimBackend {
       ...(created.created ? { projectCreated: true } : {}),
       ...(created.skipped?.length ? {
         importSkipped: created.skipped.length,
-        skippedSecrets: created.skipped.slice(0, 5),
+        skippedSecrets: [...created.skipped].sort().slice(0, 5),
       } : {}),
     }
   }
@@ -817,3 +817,4 @@ export async function createBackend(env = process.env, options = {}) {
     throw new Error(`the LayerFS backend setting is auto or sim; got ${JSON.stringify(want)}`)
   return new SimBackend(env.MAGPIE_LAYERFS_HOME)
 }
+
