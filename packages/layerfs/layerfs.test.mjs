@@ -325,6 +325,29 @@ test("item 3: an import over the file limit is refused, not swept in", () => {
   expect(() => scanImportTree(src)).toThrow("import limit")
 }, 30000)
 
+test("an import reports the same five secret paths regardless of scan order", async () => {
+  const backend = new SimBackend(mkTmp("layerfs-home-"))
+  const src = fixture()
+  const skipped = ["id_rsa", "cert.pem", "sub/.ssh", "docs/.env.local", ".git", ".env"]
+  for (const rel of skipped) {
+    const full = join(src, rel)
+    if (rel === ".git" || rel === "sub/.ssh") mkdirSync(full, { recursive: true })
+    else writeFileSync(full, "synthetic secret")
+  }
+  const ensureProject = backend.ensureProject.bind(backend)
+  // Directory enumeration order differs between runtimes and filesystems.
+  // Keep the real import, but supply the order that exposed #477.
+  backend.ensureProject = async (...args) => {
+    const result = await ensureProject(...args)
+    expect([...result.skipped].sort()).toEqual([...skipped].sort())
+    return { ...result, skipped }
+  }
+  const ws = await backend.provision("website", "main", src)
+  expect(ws.importSkipped).toBe(6)
+  expect(ws.skippedSecrets).toEqual([".env", ".git", "cert.pem", "docs/.env.local", "id_rsa"])
+  expect(skipped).toEqual(["id_rsa", "cert.pem", "sub/.ssh", "docs/.env.local", ".git", ".env"])
+})
+
 test("item 4: the store is private, and a file's mode survives the store", async () => {
   const { call, home, src } = await simTools()
   writeFileSync(join(src, "secret.txt"), "s3cret\n")
